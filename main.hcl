@@ -1,4 +1,4 @@
-resource "lab" "cursor_mulesoft_dev" {
+resource "lab" "main" {
   title       = "Explore and Extend MuleSoft with Cursor AI"
   description = "Use Cursor AI Agents to understand and extend a real MuleSoft integration project — no MuleSoft account required."
   layout      = resource.layout.two_pane
