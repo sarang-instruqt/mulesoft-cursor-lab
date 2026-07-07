@@ -19,7 +19,7 @@ resource "container" "workstation" {
 
 resource "vm" "cursor" {
   image {
-    name = "jparton-challenge/cursor-in-browser-vm"
+    name = "ubuntu:24.04"
   }
 
   resources {
