@@ -1,24 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# ── Install Docker CE ──────────────────────────────────────────────────────
-# Base image is stock ubuntu:24.04 (no pre-baked custom VM image in Labs 2.0
-# yet), so Docker has to be installed at boot.
-apt-get update -y
-apt-get install -y ca-certificates curl gnupg
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-chmod a+r /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-apt-get update -y
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# This script runs directly inside the cursor-in-browser container (via the
+# exec resource) — there's no host VM and no nested Docker involved.
 
-# Ensure Docker is running
-systemctl enable docker
-systemctl start docker
-sleep 2
-
-WORKSPACE=/opt/cursor-workspace
+WORKSPACE=/cursor
 PROJECT=$WORKSPACE/mulesoft-order-api
 
 mkdir -p "$PROJECT/src/main/mule"
@@ -685,18 +671,6 @@ HEREDOC
 # ── fix ownership (abc user = UID 911 inside the container) ───────────────────
 chown -R 911:911 "$WORKSPACE"
 
-# ── start cursor-in-browser container ────────────────────────────────────────
-docker run -d \
-  --name cursor-ide \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -e CUSTOM_PORT=8080 \
-  -e TITLE="Cursor AI — Order Processing API" \
-  -e DISPLAY=:1 \
-  -e BROWSER=chromium \
-  -v "$WORKSPACE":/cursor \
-  arfodublo/cursor-in-browser:latest-x64
-
 # ── wait for KasmVNC to be ready ─────────────────────────────────────────────
 echo "Waiting for Cursor IDE to be ready on port 8080..."
 until curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -qE "^(200|302|401)$"; do
@@ -706,16 +680,14 @@ done
 echo "Cursor IDE ready."
 
 # ── patch chromium to run as root (--no-sandbox) ──────────────────────────────
-# Idempotent: only patch if chromium-real doesn't already exist.
-# If the VM image was built with the patch already applied, skip — re-running
-# mv would overwrite chromium-real with the wrapper, creating an infinite loop.
-docker exec -u root cursor-ide bash -c "
-  if [ ! -f /usr/bin/chromium-real ]; then
-    mv /usr/bin/chromium /usr/bin/chromium-real
-    printf '#!/bin/bash\nexec /usr/bin/chromium-real --no-sandbox \"\$@\"\n' > /usr/bin/chromium
-    chmod +x /usr/bin/chromium
-    echo 'Chromium patched (first run).'
-  else
-    echo 'Chromium already patched — skipping.'
-  fi
-"
+# Idempotent: only patch if chromium-real doesn't already exist. Re-running
+# this would otherwise overwrite chromium-real with the wrapper, creating an
+# infinite loop.
+if [ ! -f /usr/bin/chromium-real ]; then
+  mv /usr/bin/chromium /usr/bin/chromium-real
+  printf '#!/bin/bash\nexec /usr/bin/chromium-real --no-sandbox "$@"\n' > /usr/bin/chromium
+  chmod +x /usr/bin/chromium
+  echo 'Chromium patched (first run).'
+else
+  echo 'Chromium already patched — skipping.'
+fi

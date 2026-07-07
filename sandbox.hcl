@@ -17,13 +17,20 @@ resource "container" "workstation" {
   }
 }
 
-resource "vm" "cursor" {
+resource "container" "cursor" {
   image {
-    name = "ubuntu:24.04"
+    name = "arfodublo/cursor-in-browser:latest-x64"
+  }
+
+  environment = {
+    CUSTOM_PORT = "8080"
+    TITLE       = "Cursor AI — Order Processing API"
+    DISPLAY     = ":1"
+    BROWSER     = "chromium"
   }
 
   resources {
-    cpu    = 4
+    cpu    = 4000
     memory = 8192
   }
 
@@ -35,8 +42,17 @@ resource "vm" "cursor" {
   port {
     local = "8080"
   }
+}
 
-  startup_script = file("./scripts/setup-cursor.sh")
+resource "exec" "setup_cursor" {
+  target  = resource.container.cursor
+  script  = "./scripts/setup-cursor.sh"
+  timeout = "300s"
+
+  run_as {
+    user  = "root"
+    group = "root"
+  }
 }
 
 resource "terminal" "workstation" {
@@ -45,7 +61,7 @@ resource "terminal" "workstation" {
 }
 
 resource "service" "cursor_ide" {
-  target = resource.vm.cursor
+  target = resource.container.cursor
   scheme = "http"
   port   = 8080
   path   = "/"
