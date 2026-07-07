@@ -1,8 +1,11 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 # This script runs directly inside the cursor-in-browser container (via the
 # exec resource) — there's no host VM and no nested Docker involved.
+# POSIX sh only (no "set -o pipefail", no bashisms): the exec runner may
+# invoke this via `sh script.sh` rather than honoring the shebang, and dash
+# exits 2 immediately on an unsupported `set` option.
 
 WORKSPACE=/cursor
 PROJECT=$WORKSPACE/mulesoft-order-api
